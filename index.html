@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>Sistema de Ventas Completo</title>
+<title>Sistema de Ventas</title>
 <style>
 body {
 font-family: 'Arial', sans-serif;
@@ -12,23 +12,21 @@ margin: 0 auto;
 background-color: #f8f9fa;
 }
 
-.totales {
+.totales, .formulario, .historial, .backup-section {
 background: #ffffff;
 padding: 20px;
 margin-bottom: 20px;
 border-radius: 10px;
 box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.totales {
 display: flex;
 justify-content: space-around;
 gap: 15px;
 }
 
 .formulario {
-background: #ffffff;
-padding: 20px;
-margin-bottom: 20px;
-border-radius: 10px;
-box-shadow: 0 2px 5px rgba(0,0,0,0.1);
 display: grid;
 grid-template-columns: repeat(4, 1fr) 100px;
 gap: 10px;
@@ -71,14 +69,6 @@ margin: 20px 0;
 padding: 10px;
 }
 
-.historial {
-margin-top: 30px;
-background: white;
-padding: 20px;
-border-radius: 10px;
-box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-}
-
 table {
 width: 100%;
 border-collapse: collapse;
@@ -92,27 +82,14 @@ border-bottom: 1px solid #ddd;
 }
 
 th { background-color: #f8f9fa; }
-
-.backup-section {
-margin-top: 20px;
-text-align: center;
-}
 </style>
 </head>
 <body>
+
 <div class="totales">
-<div>
-<h3>Invertido</h3>
-<p>$<span id="invertido">0</span></p>
-</div>
-<div>
-<h3>Ganancia</h3>
-<p>$<span id="ganancia">0</span></p>
-</div>
-<div>
-<h3>Total General</h3>
-<p>$<span id="total">0</span></p>
-</div>
+<div><h3>Invertido</h3><p>$<span id="invertido">0</span></p></div>
+<div><h3>Ganancia</h3><p>$<span id="ganancia">0</span></p></div>
+<div><h3>Total General</h3><p>$<span id="total">0</span></p></div>
 </div>
 
 <div class="formulario">
@@ -124,7 +101,6 @@ text-align: center;
 </div>
 
 <input type="text" class="buscar" placeholder="Buscar artículo..." onkeyup="buscarItem(this.value)">
-
 <div class="inventario" id="inventario"></div>
 
 <div class="historial">
@@ -137,6 +113,7 @@ text-align: center;
 <th>Costo</th>
 <th>Precio</th>
 <th>Ganancia</th>
+<th>Acciones</th>
 </tr>
 </thead>
 <tbody></tbody>
@@ -145,15 +122,22 @@ text-align: center;
 
 <div class="backup-section">
 <button class="btn-agregar" onclick="guardarBackup()">Guardar Backup</button>
-<label for="cargarBackup" style="background:#3498db; padding:8px 15px; border-radius:4px; cursor:pointer;">
-Cargar Backup
-</label>
-<input type="file" id="cargarBackup" onchange="cargarBackup(this)">
+<p style="margin-top:10px;">El respaldo se guarda automáticamente en la carpeta seleccionada al inicio.</p>
 </div>
 
 <script>
 let items = JSON.parse(localStorage.getItem('items')) || [];
 let vendidos = JSON.parse(localStorage.getItem('vendidos')) || [];
+let backupDirHandle = null;
+
+async function seleccionarCarpeta() {
+try {
+backupDirHandle = await window.showDirectoryPicker();
+alert("Carpeta seleccionada correctamente para guardar respaldos.");
+} catch (e) {
+alert("No se pudo seleccionar la carpeta.");
+}
+}
 
 function actualizarTotales() {
 const todosItems = [...items, ...vendidos];
@@ -213,6 +197,19 @@ alert('PIN incorrecto');
 }
 }
 
+function actualizarItem(id) {
+const pin = prompt('Ingrese el PIN de seguridad para modificar:');
+if (pin === '1999') {
+const item = items.find(i => i.id === id);
+item.costo = document.getElementById(`costo-${id}`).value;
+item.precio = document.getElementById(`precio-${id}`).value;
+actualizarTotales();
+alert('Artículo actualizado');
+} else {
+alert('PIN incorrecto');
+}
+}
+
 function buscarItem(texto) {
 const resultados = items.filter(item =>
 item.nombre.toLowerCase().includes(texto.toLowerCase())
@@ -225,61 +222,70 @@ const inventario = document.getElementById('inventario');
 inventario.innerHTML = itemsMostrar.map(item => `
 <div class="item">
 <h3>${item.nombre}</h3>
-<p>Costo: $${Number(item.costo).toFixed(2)}</p>
-<p>Precio: $${Number(item.precio).toFixed(2)}</p>
+<p>Costo: <input type="number" value="${Number(item.costo)}" id="costo-${item.id}"></p>
+<p>Precio: <input type="number" value="${Number(item.precio)}" id="precio-${item.id}"></p>
 <p>Fecha: ${item.fecha}</p>
 <button class="btn-vender" onclick="venderItem(${item.id})">Vender</button>
 <button class="btn-eliminar" onclick="eliminarItem(${item.id})">Eliminar</button>
+<button class="btn-agregar" onclick="actualizarItem(${item.id})">Guardar cambios</button>
 </div>
 `).join('');
 }
 
 function renderizarHistorial() {
 const tbody = document.querySelector('#historialVentas tbody');
-tbody.innerHTML = vendidos.map(item => `
+tbody.innerHTML = vendidos.map((item, index) => `
 <tr>
 <td>${new Date(item.fechaVenta).toLocaleDateString()}</td>
 <td>${item.nombre}</td>
 <td>$${Number(item.costo).toFixed(2)}</td>
 <td>$${Number(item.precio).toFixed(2)}</td>
 <td>$${(Number(item.precio) - Number(item.costo)).toFixed(2)}</td>
+<td><button class="btn-eliminar" onclick="eliminarVenta(${index})">Eliminar</button></td>
 </tr>
 `).join('');
 }
 
-function guardarBackup() {
+function eliminarVenta(index) {
+const pin = prompt('Ingrese el PIN de seguridad:');
+if (pin === '1999') {
+vendidos.splice(index, 1);
+actualizarTotales();
+} else {
+alert('PIN incorrecto');
+}
+}
+
+async function guardarBackup() {
+if (!backupDirHandle) {
+alert("Seleccione una carpeta primero.");
+return;
+}
+
+// Eliminar archivos anteriores
+for await (const entry of backupDirHandle.values()) {
+if (entry.kind === 'file') {
+await backupDirHandle.removeEntry(entry.name);
+}
+}
+
+// Crear y guardar nuevo archivo
 const data = { items, vendidos };
-const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
-const url = URL.createObjectURL(blob);
-const a = document.createElement('a');
-a.href = url;
-a.download = `backup-ventas-${new Date().toISOString().split('T')[0]}.json`;
-a.click();
+const fileName = `backup-ventas-${new Date().toISOString().split('T')[0]}.json`;
+const fileHandle = await backupDirHandle.getFileHandle(fileName, { create: true });
+const writable = await fileHandle.createWritable();
+await writable.write(JSON.stringify(data));
+await writable.close();
+
+alert("Backup guardado correctamente.");
 }
 
-function cargarBackup(input) {
-const file = input.files[0];
-const reader = new FileReader();
-
-reader.onload = function(e) {
-try {
-const data = JSON.parse(e.target.result);
-items = data.items || [];
-vendidos = data.vendidos || [];
+// Inicialización
+window.onload = () => {
+seleccionarCarpeta();
 actualizarTotales();
 renderizarItems();
-alert('Backup cargado correctamente');
-} catch {
-alert('Error al cargar el backup');
-}
 };
-reader.readAsText(file);
-}
-
-// Inicializar
-actualizarTotales();
-renderizarItems();
-renderizarHistorial();
 </script>
 </body>
 </html>
